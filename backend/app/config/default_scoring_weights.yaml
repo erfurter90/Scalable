@@ -1,0 +1,10 @@
+# Default BTC investment score weights (must sum to 1.0).
+# This file only seeds the initial ScoringWeightsConfig DB row (see the Alembic data
+# migration). At runtime the DB row is authoritative and can be changed without a
+# redeploy — see services/score_service.py.
+valuation_weight: 0.25
+sentiment_weight: 0.20
+cycle_weight: 0.20
+macro_weight: 0.15
+momentum_weight: 0.10
+onchain_weight: 0.10

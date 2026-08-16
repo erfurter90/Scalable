@@ -1,0 +1,33 @@
+# --- Environment / secrets ---
+.env
+.env.local
+.env.*.local
+*.pem
+
+# --- Python / backend ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.db
+*.sqlite3
+backend/finanz_agent.db
+
+# --- Node / frontend ---
+node_modules/
+.next/
+out/
+frontend/.env
+npm-debug.log*
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Docker ---
+*.log
