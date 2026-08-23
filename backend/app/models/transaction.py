@@ -29,6 +29,11 @@ class Transaction(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     date: Mapped[date] = mapped_column(Date, index=True)
+    # Full timestamp (UTC) when known -- `date` above only ever held day precision, but every
+    # exchange source actually reports a precise time, so this is populated alongside it for
+    # displays that need time-of-day (e.g. a "recent transactions" widget). Nullable because
+    # rows synced before this field existed have no way to recover the dropped time.
+    occurred_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     type: Mapped[TransactionType] = mapped_column(Enum(TransactionType, native_enum=False, length=16))
     asset: Mapped[str] = mapped_column(String(32))  # "BTC", "EUR", "AAPL", ...
     amount: Mapped[float] = mapped_column(Numeric(30, 10))  # quantity of asset

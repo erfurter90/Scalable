@@ -1,6 +1,7 @@
-"""Replay-ledger math (compute_holding) plus the end-to-end sync() flow with the Bitvavo HTTP
-layer replaced by a monkeypatched BitvavoProvider — no live network calls, matching every
-other provider-backed test in this suite."""
+"""End-to-end sync() flow with the Bitvavo HTTP layer replaced by a monkeypatched
+BitvavoProvider — no live network calls, matching every other provider-backed test in this
+suite. See test_exchange_sync_common.py for the exchange-agnostic compute_holding() replay
+math (shared with bitget_sync_service)."""
 
 from decimal import Decimal
 
@@ -8,7 +9,7 @@ import pytest
 
 from app.core.config import get_settings
 from app.models.financial_snapshot import FinancialEntry
-from app.models.transaction import Transaction, TransactionType
+from app.models.transaction import Transaction
 from app.providers.bitvavo_provider import BitvavoProvider, BitvavoResult
 from app.schemas.financial import FinancialEntryCreate
 from app.services import bitvavo_sync_service, financial_service
@@ -18,112 +19,9 @@ from app.services import bitvavo_sync_service, financial_service
 def _mock_market_data(monkeypatch):
     monkeypatch.setenv("MARKET_DATA_MODE", "mock")
     get_settings.cache_clear()
+    monkeypatch.setattr(bitvavo_sync_service.time, "sleep", lambda *_: None)
     yield
     get_settings.cache_clear()
-
-
-def _add_txn(db, user_id, *, type_, amount, price=None, fee=None, asset="BTC", external_id, day):
-    txn = Transaction(
-        user_id=user_id,
-        date=day,
-        type=type_,
-        asset=asset,
-        amount=Decimal(amount),
-        price=Decimal(price) if price is not None else None,
-        fee=Decimal(fee) if fee is not None else None,
-        currency="EUR",
-        source="bitvavo",
-        external_id=external_id,
-    )
-    db.add(txn)
-    db.commit()
-    return txn
-
-
-# ---- compute_holding: pure replay math -------------------------------------------------
-
-
-def test_compute_holding_single_buy(db_session, test_user, today):
-    _add_txn(db_session, test_user.id, type_=TransactionType.buy, amount="0.1", price="50000", external_id="t1", day=today)
-
-    holding = bitvavo_sync_service.compute_holding(db_session, test_user.id, "BTC")
-
-    assert holding.quantity == Decimal("0.1")
-    assert holding.average_cost_basis == Decimal("50000.00")  # (0.1 * 50000) / 0.1
-    assert holding.cost_basis_incomplete is False
-
-
-def test_compute_holding_two_buys_weighted_average(db_session, test_user, today):
-    _add_txn(db_session, test_user.id, type_=TransactionType.buy, amount="0.1", price="50000", external_id="t1", day=today)
-    _add_txn(db_session, test_user.id, type_=TransactionType.buy, amount="0.1", price="60000", external_id="t2", day=today)
-
-    holding = bitvavo_sync_service.compute_holding(db_session, test_user.id, "BTC")
-
-    # (0.1*50000 + 0.1*60000) / 0.2 = 55000.00 -- same formula as add_purchase's blend
-    assert holding.quantity == Decimal("0.2")
-    assert holding.average_cost_basis == Decimal("55000.00")
-
-
-def test_compute_holding_buy_includes_fee(db_session, test_user, today):
-    _add_txn(db_session, test_user.id, type_=TransactionType.buy, amount="0.1", price="50000", fee="10", external_id="t1", day=today)
-
-    holding = bitvavo_sync_service.compute_holding(db_session, test_user.id, "BTC")
-
-    # (0.1*50000 + 10) / 0.1 = 5010 / 0.1 = 50100.00
-    assert holding.average_cost_basis == Decimal("50100.00")
-
-
-def test_compute_holding_sell_reduces_proportionally(db_session, test_user, today):
-    _add_txn(db_session, test_user.id, type_=TransactionType.buy, amount="0.2", price="50000", external_id="t1", day=today)
-    _add_txn(db_session, test_user.id, type_=TransactionType.sell, amount="0.1", price="70000", external_id="t2", day=today)
-
-    holding = bitvavo_sync_service.compute_holding(db_session, test_user.id, "BTC")
-
-    # selling half the position removes half the cost total too, regardless of sale price --
-    # weighted-average cost basis is unaffected by the price actually realized on the sale.
-    assert holding.quantity == Decimal("0.1")
-    assert holding.average_cost_basis == Decimal("50000.00")
-
-
-def test_compute_holding_withdrawal_reduces_like_a_sell(db_session, test_user, today):
-    _add_txn(db_session, test_user.id, type_=TransactionType.buy, amount="0.2", price="50000", external_id="t1", day=today)
-    _add_txn(db_session, test_user.id, type_=TransactionType.withdrawal, amount="0.1", external_id="t2", day=today)
-
-    holding = bitvavo_sync_service.compute_holding(db_session, test_user.id, "BTC")
-
-    assert holding.quantity == Decimal("0.1")
-    assert holding.average_cost_basis == Decimal("50000.00")
-
-
-def test_compute_holding_deposit_marks_cost_basis_incomplete(db_session, test_user, today):
-    _add_txn(db_session, test_user.id, type_=TransactionType.buy, amount="0.1", price="50000", external_id="t1", day=today)
-    _add_txn(db_session, test_user.id, type_=TransactionType.deposit, amount="0.05", external_id="t2", day=today)
-
-    holding = bitvavo_sync_service.compute_holding(db_session, test_user.id, "BTC")
-
-    # Quantity still counts the deposited coins, but since we don't know what they cost, the
-    # app must not present a cost basis as if it were exact.
-    assert holding.quantity == Decimal("0.15")
-    assert holding.cost_basis_incomplete is True
-    assert holding.average_cost_basis is None
-
-
-def test_compute_holding_fully_sold_returns_zero_quantity(db_session, test_user, today):
-    _add_txn(db_session, test_user.id, type_=TransactionType.buy, amount="0.1", price="50000", external_id="t1", day=today)
-    _add_txn(db_session, test_user.id, type_=TransactionType.sell, amount="0.1", price="70000", external_id="t2", day=today)
-
-    holding = bitvavo_sync_service.compute_holding(db_session, test_user.id, "BTC")
-
-    assert holding.quantity == Decimal("0")
-    assert holding.average_cost_basis is None
-
-
-def test_compute_holding_ignores_other_users_and_other_assets(db_session, test_user, today):
-    _add_txn(db_session, test_user.id, type_=TransactionType.buy, amount="0.1", price="50000", asset="ETH", external_id="t1", day=today)
-
-    holding = bitvavo_sync_service.compute_holding(db_session, test_user.id, "BTC")
-
-    assert holding.quantity == Decimal("0")
 
 
 # ---- sync(): end-to-end with a monkeypatched provider -----------------------------------
@@ -223,7 +121,7 @@ def test_sync_replaces_existing_manual_entry_labeled_as_bitvavo(db_session, test
     remaining = db_session.query(FinancialEntry).filter(FinancialEntry.user_id == test_user.id).all()
     assert len(remaining) == 1
     assert remaining[0].source == "bitvavo"
-    assert remaining[0].label == "Bitvavo BTC"  # the old manual row is gone, not just updated
+    assert remaining[0].label == "Bitvavo"  # the old manual row is gone, not just updated
 
 
 def test_sync_leaves_same_coin_held_elsewhere_untouched(db_session, test_user, monkeypatch, today):
@@ -265,7 +163,7 @@ def test_sync_leaves_same_coin_held_elsewhere_untouched(db_session, test_user, m
     all_entries = db_session.query(FinancialEntry).filter(FinancialEntry.user_id == test_user.id).all()
     assert len(all_entries) == 2  # untouched Trade Republic entry + new Bitvavo entry
     labels = {entry.label for entry in all_entries}
-    assert labels == {"Trade Republic", "Bitvavo BTC"}
+    assert labels == {"Trade Republic", "Bitvavo"}
 
 
 def test_sync_is_idempotent_and_picks_up_new_purchase_on_rerun(db_session, test_user, monkeypatch, today):

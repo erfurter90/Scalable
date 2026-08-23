@@ -42,6 +42,22 @@ class Settings(BaseSettings):
     bitvavo_api_key: str | None = None
     bitvavo_api_secret: str | None = None
 
+    # Optional: Bitget transaction sync degrades gracefully to "not configured" when unset.
+    # Must be a read-only API key — see providers/bitget_provider.py. Bitget requires a third
+    # value (a passphrase chosen when the key was created) in addition to key/secret.
+    bitget_api_key: str | None = None
+    bitget_api_secret: str | None = None
+    bitget_api_passphrase: str | None = None
+
+    # Optional: Coinbase transaction sync degrades gracefully to "not configured" when unset.
+    # Must be a CDP API key with only "View" permission — see providers/coinbase_provider.py.
+    # Unlike the other exchanges, Coinbase signs requests with a per-request JWT rather than an
+    # HMAC secret, so this is a key *name* (not a shared secret) plus a PEM private key. Store
+    # the PEM block on one .env line with literal "\n" for line breaks (the provider unescapes
+    # them) since .env values can't contain real newlines.
+    coinbase_api_key_name: str | None = None
+    coinbase_api_private_key: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -143,9 +143,14 @@ export interface FearGreed {
   index: MarketDataPoint;
 }
 
+export interface BtcDominance {
+  dominance: MarketDataPoint;
+}
+
 export interface MarketSnapshot {
   btc: BtcPrice;
   fear_greed: FearGreed;
+  btc_dominance: BtcDominance;
 }
 
 export interface SubScore {
@@ -205,4 +210,57 @@ export interface BitvavoSyncResult {
   configured: boolean;
   assets: BitvavoAssetResult[];
   error: string | null;
+}
+
+export interface BitgetStatus {
+  configured: boolean;
+}
+
+export interface BitgetAssetResult {
+  symbol: string;
+  coingecko_id: string | null;
+  quantity: string;
+  average_cost_basis: string | null;
+  cost_basis_incomplete: boolean;
+  current_value_eur: string | null;
+  replaced_entry_labels: string[];
+  note: string | null;
+  error: string | null;
+}
+
+export interface BitgetSyncResult {
+  configured: boolean;
+  assets: BitgetAssetResult[];
+  error: string | null;
+}
+
+export interface CoinbaseStatus {
+  configured: boolean;
+}
+
+export interface CoinbaseAssetResult {
+  symbol: string;
+  coingecko_id: string | null;
+  quantity: string;
+  average_cost_basis: string | null;
+  cost_basis_incomplete: boolean;
+  current_value_eur: string | null;
+  replaced_entry_labels: string[];
+  note: string | null;
+  error: string | null;
+}
+
+export interface CoinbaseSyncResult {
+  configured: boolean;
+  assets: CoinbaseAssetResult[];
+  error: string | null;
+}
+
+export interface RecentTransaction {
+  source: string;
+  asset: string;
+  quantity: string;
+  price: string | null;
+  total_cost: string | null;
+  occurred_at: string | null;
 }

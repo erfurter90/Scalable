@@ -2,7 +2,8 @@
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
-import { formatCurrency } from "@/lib/format";
+import { formatCurrencyOrMask } from "@/lib/format";
+import { usePrivacyMode } from "@/lib/privacy-context";
 import type { PortfolioAllocation } from "@/lib/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 
@@ -16,6 +17,8 @@ const COLORS: Record<string, string> = {
 };
 
 export function PortfolioAllocationChart({ portfolio }: { portfolio: PortfolioAllocation | null }) {
+  const { hidden } = usePrivacyMode();
+
   if (!portfolio || portfolio.breakdown.length === 0) {
     return (
       <Card>
@@ -43,7 +46,7 @@ export function PortfolioAllocationChart({ portfolio }: { portfolio: PortfolioAl
                   <Cell key={entry.name} fill={COLORS[entry.name] ?? "#cbd5e1"} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+              <Tooltip formatter={(value) => formatCurrencyOrMask(Number(value), hidden)} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -55,7 +58,7 @@ export function PortfolioAllocationChart({ portfolio }: { portfolio: PortfolioAl
                 {entry.name}
               </span>
               <span className="text-right">
-                <span className="block text-slate-700">{formatCurrency(entry.value)}</span>
+                <span className="block text-slate-700">{formatCurrencyOrMask(entry.value, hidden)}</span>
                 <span className="block text-slate-400">{entry.percent.toFixed(1)}%</span>
               </span>
             </li>

@@ -6,8 +6,8 @@ import { useFinancialEntries } from "@/lib/queries/useFinancials";
 import type { FinancialEntry } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { BitvavoSyncCard } from "@/components/financials/BitvavoSyncCard";
 import { EntryTable } from "@/components/financials/EntryTable";
+import { ExchangeSyncPanel } from "@/components/financials/ExchangeSyncPanel";
 import { EntryFormModal } from "@/components/financials/EntryFormModal";
 import { PurchaseModal } from "@/components/financials/PurchaseModal";
 
@@ -26,7 +26,7 @@ export default function FinancialsPage() {
         <Button onClick={() => setModalState({ open: true, entry: null })}>+ Neuer Eintrag</Button>
       </div>
 
-      <BitvavoSyncCard />
+      <ExchangeSyncPanel />
 
       <Card>
         {entries.isLoading ? (

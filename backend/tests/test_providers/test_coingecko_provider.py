@@ -121,3 +121,60 @@ def test_fetch_price_http_error_is_error_status(monkeypatch):
     result = provider.fetch_price("bitcoin", "eur")
 
     assert result.status == "error"
+
+
+def test_fetch_price_retries_on_429_then_succeeds(monkeypatch):
+    monkeypatch.setattr("app.providers.coingecko_provider.time.sleep", lambda *_: None)
+    call_count = {"n": 0}
+
+    def _get(url, params=None, timeout=None):
+        call_count["n"] += 1
+        request = httpx.Request("GET", url)
+        if call_count["n"] < 3:
+            return httpx.Response(429, json={"status": {"error_code": 429}}, request=request)
+        return httpx.Response(200, json={"bitcoin": {"eur": 55000.0}}, request=request)
+
+    monkeypatch.setattr(httpx, "get", _get)
+    provider = CoinGeckoProvider()
+
+    result = provider.fetch_price("bitcoin", "eur")
+
+    assert result.status == "ok"
+    assert result.value == Decimal("55000.0")
+    assert call_count["n"] == 3
+
+
+def test_fetch_price_gives_up_after_exhausting_retries_on_429(monkeypatch):
+    monkeypatch.setattr("app.providers.coingecko_provider.time.sleep", lambda *_: None)
+    call_count = {"n": 0}
+
+    def _get(url, params=None, timeout=None):
+        call_count["n"] += 1
+        request = httpx.Request("GET", url)
+        return httpx.Response(429, json={"status": {"error_code": 429}}, request=request)
+
+    monkeypatch.setattr(httpx, "get", _get)
+    provider = CoinGeckoProvider()
+
+    result = provider.fetch_price("bitcoin", "eur")
+
+    assert result.status == "error"
+    assert call_count["n"] == 3  # initial attempt + 2 retries, matching _MAX_PRICE_RETRIES
+
+
+def test_fetch_price_does_not_retry_on_non_429_error(monkeypatch):
+    monkeypatch.setattr("app.providers.coingecko_provider.time.sleep", lambda *_: None)
+    call_count = {"n": 0}
+
+    def _get(url, params=None, timeout=None):
+        call_count["n"] += 1
+        request = httpx.Request("GET", url)
+        return httpx.Response(500, json={}, request=request)
+
+    monkeypatch.setattr(httpx, "get", _get)
+    provider = CoinGeckoProvider()
+
+    result = provider.fetch_price("bitcoin", "eur")
+
+    assert result.status == "error"
+    assert call_count["n"] == 1  # a non-429 error is not transient -- no point retrying it

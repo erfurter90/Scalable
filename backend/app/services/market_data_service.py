@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.models.market_data import DataPointStatus, MarketDataPoint
 from app.providers.registry import get_provider_for_metric
 from app.schemas.market_data import (
+    BtcDominanceOut,
     BtcPriceOut,
     FearGreedOut,
     MarketDataPointOut,
@@ -97,5 +98,11 @@ def get_fear_greed(db: Session) -> FearGreedOut:
     return FearGreedOut(index=_to_out(get_fresh(db, "fear_greed_index")))
 
 
+def get_btc_dominance(db: Session) -> BtcDominanceOut:
+    return BtcDominanceOut(dominance=_to_out(get_fresh(db, "btc_dominance")))
+
+
 def get_snapshot(db: Session) -> MarketSnapshotOut:
-    return MarketSnapshotOut(btc=get_btc_price(db), fear_greed=get_fear_greed(db))
+    return MarketSnapshotOut(
+        btc=get_btc_price(db), fear_greed=get_fear_greed(db), btc_dominance=get_btc_dominance(db)
+    )

@@ -8,7 +8,20 @@ from slowapi.errors import RateLimitExceeded
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.rate_limit import limiter
-from app.routers import auth, bitvavo, chat, dashboard, financials, market_data, portfolio, score
+from app.routers import (
+    auth,
+    bitget,
+    bitvavo,
+    bitcoin_history,
+    chat,
+    coinbase,
+    dashboard,
+    financials,
+    market_data,
+    portfolio,
+    score,
+    transactions,
+)
 
 configure_logging()
 settings = get_settings()
@@ -34,6 +47,10 @@ app.include_router(score.router)
 app.include_router(dashboard.router)
 app.include_router(chat.router)
 app.include_router(bitvavo.router)
+app.include_router(bitget.router)
+app.include_router(coinbase.router)
+app.include_router(transactions.router)
+app.include_router(bitcoin_history.router)
 
 
 @app.get("/api/health")

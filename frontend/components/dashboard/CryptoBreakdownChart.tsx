@@ -3,7 +3,8 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 import { coinTicker } from "@/lib/coins";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrencyOrMask } from "@/lib/format";
+import { usePrivacyMode } from "@/lib/privacy-context";
 import type { CryptoBreakdown } from "@/lib/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 
@@ -12,6 +13,8 @@ import { Card, CardTitle } from "@/components/ui/Card";
 const PALETTE = ["#a855f7", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#ec4899", "#84cc16"];
 
 export function CryptoBreakdownChart({ cryptoBreakdown }: { cryptoBreakdown: CryptoBreakdown | null }) {
+  const { hidden } = usePrivacyMode();
+
   // Only worth its own chart once there's more than one coin to actually break down — a
   // single slice would just repeat what the main allocation chart already shows.
   if (!cryptoBreakdown || cryptoBreakdown.breakdown.length < 2) {
@@ -36,7 +39,7 @@ export function CryptoBreakdownChart({ cryptoBreakdown }: { cryptoBreakdown: Cry
                   <Cell key={entry.name} fill={PALETTE[index % PALETTE.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+              <Tooltip formatter={(value) => formatCurrencyOrMask(Number(value), hidden)} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -51,7 +54,7 @@ export function CryptoBreakdownChart({ cryptoBreakdown }: { cryptoBreakdown: Cry
                 {entry.name}
               </span>
               <span className="text-right">
-                <span className="block text-slate-700">{formatCurrency(entry.value)}</span>
+                <span className="block text-slate-700">{formatCurrencyOrMask(entry.value, hidden)}</span>
                 <span className="block text-slate-400">{entry.percent.toFixed(1)}%</span>
               </span>
             </li>

@@ -16,16 +16,21 @@ const TYPE_LABELS: Record<string, string> = {
   liability: "Verbindlichkeit",
 };
 
-type SortKey = "date" | "type" | "category" | "label" | "amount";
+type SortKey = "date" | "type" | "category" | "label" | "coin" | "amount";
 type SortDirection = "asc" | "desc";
 
 const COLUMNS: { key: SortKey; label: string; align?: "right" }[] = [
   { key: "date", label: "Datum" },
   { key: "type", label: "Typ" },
   { key: "category", label: "Kategorie" },
-  { key: "label", label: "Bezeichnung" },
+  { key: "label", label: "Börse" },
+  { key: "coin", label: "Coin" },
   { key: "amount", label: "Betrag", align: "right" },
 ];
+
+function coinLabel(entry: FinancialEntry): string {
+  return entry.price_asset_id ? coinTicker(entry.price_asset_id) : "";
+}
 
 function sortValue(entry: FinancialEntry, key: SortKey): string | number {
   switch (key) {
@@ -37,17 +42,17 @@ function sortValue(entry: FinancialEntry, key: SortKey): string | number {
       return entry.category.toLowerCase();
     case "label":
       return entry.label.toLowerCase();
+    case "coin":
+      return coinLabel(entry).toLowerCase();
     case "amount":
       return Number(entry.amount);
   }
 }
 
-function formatQuantity(quantity: string, priceAssetId: string | null): string {
+function formatQuantity(quantity: string): string {
   // Trim trailing zeros from the Numeric(30,10) string the backend returns (e.g.
   // "0.2000000000" -> "0.2") for a readable display.
-  const trimmed = parseFloat(quantity).toString();
-  const unit = priceAssetId ? coinTicker(priceAssetId) : "";
-  return `${trimmed} ${unit}`.trim();
+  return parseFloat(quantity).toString();
 }
 
 function gainLoss(entry: FinancialEntry): { abs: number; pct: number } | null {
@@ -154,21 +159,20 @@ export function EntryTable({
               </td>
               <td className="py-2 pr-3">
                 {entry.label}
-                {entry.source === "bitvavo" && (
+                {entry.source !== "manual" && (
                   <span
                     className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500"
-                    title="Automatisch von Bitvavo synchronisiert — wird beim nächsten Sync überschrieben"
+                    title="Automatisch synchronisiert — wird beim nächsten Sync überschrieben"
                   >
-                    Bitvavo
+                    Auto-Sync
                   </span>
                 )}
               </td>
+              <td className="py-2 pr-3 text-slate-500">{coinLabel(entry) || "—"}</td>
               <td className="py-2 pr-3 text-right">
                 {formatCurrency(entry.amount, entry.currency)}
                 {entry.quantity && (
-                  <span className="block text-xs text-slate-400">
-                    {formatQuantity(entry.quantity, entry.price_asset_id)}
-                  </span>
+                  <span className="block text-xs text-slate-400">{formatQuantity(entry.quantity)}</span>
                 )}
                 {entry.average_cost_basis && (
                   <span className="block text-xs text-slate-400">
@@ -204,7 +208,7 @@ export function EntryTable({
                         Wert aktualisieren
                       </Button>
                     )}
-                    {entry.quantity && entry.source !== "bitvavo" && (
+                    {entry.quantity && entry.source === "manual" && (
                       <Button
                         variant="secondary"
                         onClick={() => onAddPurchase(entry)}

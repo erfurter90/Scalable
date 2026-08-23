@@ -29,8 +29,20 @@ _METRIC_FIELDS = {
     "btc_volume_usd_24h": (("market_data", "total_volume", "usd"), "usd"),
 }
 
+_GLOBAL_ENDPOINT = "https://api.coingecko.com/api/v3/global"
+_GLOBAL_ENDPOINT_PARAMS = {
+    "localization": "false",
+}
+
 _SIMPLE_PRICE_ENDPOINT = "https://api.coingecko.com/api/v3/simple/price"
 _CACHE_TTL_SECONDS = 30
+# CoinGecko's free tier enforces a short burst limit -- confirmed during development that
+# syncing several coins from one exchange (each a separate fetch_price call) reliably
+# triggers a 429, and it typically clears within a couple of seconds. Retried here, once,
+# rather than in every caller, so all of them (dashboard, manual entries, every exchange
+# sync) benefit without duplicating the same backoff loop.
+_MAX_PRICE_RETRIES = 3
+_PRICE_RETRY_BACKOFF_SECONDS = 1.5
 
 
 class CoinGeckoProvider:
@@ -44,11 +56,16 @@ class CoinGeckoProvider:
         self._timeout = timeout_seconds
         self._cached_response: dict | None = None
         self._cached_at: float = 0.0
+        self._cached_global_response: dict | None = None
+        self._cached_global_at: float = 0.0
 
     def supported_metrics(self) -> list[str]:
-        return list(_METRIC_FIELDS.keys())
+        return list(_METRIC_FIELDS.keys()) + ["btc_dominance"]
 
     def fetch(self, metric: str) -> ProviderResult:
+        if metric == "btc_dominance":
+            return self._fetch_btc_dominance()
+
         if metric not in _METRIC_FIELDS:
             return ProviderResult(
                 metric=metric,
@@ -116,17 +133,68 @@ class CoinGeckoProvider:
         self._cached_at = now
         return data
 
+    def _get_global_data(self) -> dict:
+        now = time.monotonic()
+        if self._cached_global_response is not None and (now - self._cached_global_at) < _CACHE_TTL_SECONDS:
+            return self._cached_global_response
+
+        response = httpx.get(_GLOBAL_ENDPOINT, params=_GLOBAL_ENDPOINT_PARAMS, timeout=self._timeout)
+        response.raise_for_status()
+        data = response.json()
+        self._cached_global_response = data
+        self._cached_global_at = now
+        return data
+
+    def _fetch_btc_dominance(self) -> ProviderResult:
+        metric = "btc_dominance"
+        try:
+            data = self._get_global_data()
+        except (httpx.HTTPError, httpx.TimeoutException) as exc:
+            return ProviderResult(
+                metric=metric,
+                value=None,
+                raw=None,
+                unit=None,
+                status="error",
+                source=self.name,
+                source_endpoint=_GLOBAL_ENDPOINT,
+                as_of=None,
+                error_message=str(exc),
+            )
+
+        dominance = _dig(data, ("data", "market_cap_percentage", "btc"))
+        if dominance is None:
+            return ProviderResult(
+                metric=metric,
+                value=None,
+                raw=data,
+                unit="percent",
+                status="unavailable",
+                source=self.name,
+                source_endpoint=_GLOBAL_ENDPOINT,
+                as_of=None,
+                error_message="BTC dominance field missing from CoinGecko global response",
+            )
+
+        as_of = _parse_global_last_updated(data)
+        return ProviderResult(
+            metric=metric,
+            value=Decimal(str(dominance)),
+            raw=data,
+            unit="percent",
+            status="ok",
+            source=self.name,
+            source_endpoint=_GLOBAL_ENDPOINT,
+            as_of=as_of,
+        )
+
     def fetch_price(self, coin_id: str, vs_currency: str) -> ProviderResult:
         """Fetches the current price of an arbitrary CoinGecko coin (used for quantity-based
         financial entries, e.g. "0.2 BTC" or "3 ETH" — priced on demand, not part of the fixed
         `_METRIC_FIELDS` set above since the coin is chosen per entry, not known in advance."""
         metric = f"crypto_price_{coin_id}_{vs_currency}"
         try:
-            response = httpx.get(
-                _SIMPLE_PRICE_ENDPOINT,
-                params={"ids": coin_id, "vs_currencies": vs_currency},
-                timeout=self._timeout,
-            )
+            response = self._get_simple_price_with_retry({"ids": coin_id, "vs_currencies": vs_currency})
             response.raise_for_status()
             data = response.json()
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
@@ -167,6 +235,17 @@ class CoinGeckoProvider:
             as_of=datetime.now(UTC),
         )
 
+    def _get_simple_price_with_retry(self, params: dict) -> httpx.Response:
+        delay = _PRICE_RETRY_BACKOFF_SECONDS
+        response = httpx.get(_SIMPLE_PRICE_ENDPOINT, params=params, timeout=self._timeout)
+        for _ in range(_MAX_PRICE_RETRIES - 1):
+            if response.status_code != 429:
+                break
+            time.sleep(delay)
+            delay *= 2
+            response = httpx.get(_SIMPLE_PRICE_ENDPOINT, params=params, timeout=self._timeout)
+        return response
+
 
 def _dig(data: dict, path: tuple[str, ...]) -> float | None:
     current: object = data
@@ -179,6 +258,16 @@ def _dig(data: dict, path: tuple[str, ...]) -> float | None:
 
 def _parse_last_updated(data: dict) -> datetime | None:
     raw = data.get("last_updated")
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw).astimezone(UTC)
+    except ValueError:
+        return None
+
+
+def _parse_global_last_updated(data: dict) -> datetime | None:
+    raw = data.get("data", {}).get("last_updated_at")
     if not raw:
         return None
     try:

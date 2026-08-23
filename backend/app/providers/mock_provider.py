@@ -16,6 +16,7 @@ _FIXED_VALUES: dict[str, tuple[Decimal, str]] = {
     "btc_change_30d": (Decimal("8.10"), "percent"),
     "btc_market_cap_usd": (Decimal(1280000000000), "usd"),
     "btc_volume_usd_24h": (Decimal(32000000000), "usd"),
+    "btc_dominance": (Decimal("45.50"), "percent"),
     "fear_greed_index": (Decimal(50), "index_0_100"),
     "fx_usd_eur": (Decimal("0.92"), "EUR"),
 }

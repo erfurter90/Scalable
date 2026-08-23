@@ -1,19 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "../api-client";
-import type { BitvavoStatus, BitvavoSyncResult } from "../types";
+import type { CoinbaseStatus, CoinbaseSyncResult } from "../types";
 
-export function useBitvavoStatus() {
+export function useCoinbaseStatus() {
   return useQuery({
-    queryKey: ["bitvavo", "status"],
-    queryFn: () => apiClient.get<BitvavoStatus>("/api/integrations/bitvavo/status"),
+    queryKey: ["coinbase", "status"],
+    queryFn: () => apiClient.get<CoinbaseStatus>("/api/integrations/coinbase/status"),
   });
 }
 
-export function useBitvavoSync() {
+export function useCoinbaseSync() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => apiClient.post<BitvavoSyncResult>("/api/integrations/bitvavo/sync"),
+    mutationFn: () => apiClient.post<CoinbaseSyncResult>("/api/integrations/coinbase/sync"),
     onSuccess: () => {
       // A sync can create, replace, or remove FinancialEntry rows -- same fan-out as any
       // other financial-data write (see useFinancials.ts's useInvalidateFinancials).

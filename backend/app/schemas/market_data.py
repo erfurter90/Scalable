@@ -29,6 +29,11 @@ class FearGreedOut(BaseModel):
     index: MarketDataPointOut
 
 
+class BtcDominanceOut(BaseModel):
+    dominance: MarketDataPointOut
+
+
 class MarketSnapshotOut(BaseModel):
     btc: BtcPriceOut
     fear_greed: FearGreedOut
+    btc_dominance: BtcDominanceOut

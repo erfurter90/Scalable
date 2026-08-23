@@ -2,11 +2,14 @@
 
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrencyOrMask, formatDate } from "@/lib/format";
+import { usePrivacyMode } from "@/lib/privacy-context";
 import type { NetWorthSnapshot } from "@/lib/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 
 export function NetWorthHistoryChart({ history }: { history: NetWorthSnapshot[] }) {
+  const { hidden } = usePrivacyMode();
+
   if (history.length < 2) {
     return (
       <Card>
@@ -36,8 +39,11 @@ export function NetWorthHistoryChart({ history }: { history: NetWorthSnapshot[] 
               </linearGradient>
             </defs>
             <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11 }} minTickGap={30} />
-            <YAxis tick={{ fontSize: 11 }} width={70} tickFormatter={(v) => formatCurrency(v)} />
-            <Tooltip labelFormatter={(label) => formatDate(String(label))} formatter={(value) => formatCurrency(Number(value))} />
+            <YAxis tick={{ fontSize: 11 }} width={70} tickFormatter={(v) => formatCurrencyOrMask(v, hidden)} />
+            <Tooltip
+              labelFormatter={(label) => formatDate(String(label))}
+              formatter={(value) => formatCurrencyOrMask(Number(value), hidden)}
+            />
             <Area type="monotone" dataKey="net_worth" stroke="#0f172a" fill="url(#netWorthGradient)" strokeWidth={2} />
           </AreaChart>
         </ResponsiveContainer>
