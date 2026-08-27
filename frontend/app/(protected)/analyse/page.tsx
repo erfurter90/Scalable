@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardTitle } from "@/components/ui/Card";
-import { CurrentCycleChart } from "@/components/analysis/CurrentCycleChart";
+import { CycleAnalysisChart } from "@/components/analysis/CycleAnalysisChart";
 
 export default function AnalysisPage() {
   return (
@@ -11,12 +11,12 @@ export default function AnalysisPage() {
       </div>
 
       <Card>
-        <CardTitle>Aktueller Bitcoin Bullrun-Zyklus</CardTitle>
+        <CardTitle>Bitcoin Bullrun-Zyklen Analyse</CardTitle>
         <p className="mt-2 text-sm text-slate-600">
-          Echte historische Bitcoin-Preise von Juni 2022 bis heute. Zeigt den vollständigen Verlauf mit täglicher Granularität.
+          Echte historische Bitcoin-Preise mit automatischer Zyklus-Erkennung. Jeder Zyklus beginnt beim ersten Wert und endet beim nächsten Tiefpunkt nach einem Allzeithoch. Klicke auf die Legende oder die Karten, um Zyklen ein-/auszublenden.
         </p>
         <div className="mt-6">
-          <CurrentCycleChart />
+          <CycleAnalysisChart />
         </div>
       </Card>
 

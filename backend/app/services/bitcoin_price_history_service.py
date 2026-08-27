@@ -75,15 +75,19 @@ async def update_price_history() -> dict:
 
 
 def get_price_history() -> dict:
-    """Gib alle gespeicherten Bitcoin-Preise zurück."""
+    """Gib alle gespeicherten Bitcoin-Preise mit Volume zurück."""
     history = load_price_history()
 
     # Konvertiere die Preise zu sortierten Liste
+    prices_dict = history.get("prices", {})
+    volumes_dict = history.get("volumes", {})
+
     prices_list = []
-    for date_str, price in sorted(history.get("prices", {}).items()):
+    for date_str, price in sorted(prices_dict.items()):
         prices_list.append({
             "date": date_str,
-            "price": float(price) if isinstance(price, (int, float, Decimal)) else price
+            "price": float(price) if isinstance(price, (int, float, Decimal)) else price,
+            "volume": float(volumes_dict.get(date_str, 0))
         })
 
     return {
@@ -100,13 +104,15 @@ def get_prices_for_date_range(start_date: str, end_date: str) -> list:
     """
     history = load_price_history()
     prices = history.get("prices", {})
+    volumes = history.get("volumes", {})
 
     result = []
     for date_str in sorted(prices.keys()):
         if start_date <= date_str <= end_date:
             result.append({
                 "date": date_str,
-                "price": float(prices[date_str])
+                "price": float(prices[date_str]),
+                "volume": float(volumes.get(date_str, 0))
             })
 
     return result
